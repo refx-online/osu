@@ -200,7 +200,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
 
                 double relevantMissCount = Math.Min(effectiveMissCount + aimEstimatedSliderBreaks, totalImperfectHits + countSliderTickMiss);
 
-                aimValue *= calculateMissPenalty(relevantMissCount, attributes.AimDifficultStrainCount);
+                aimValue *= calculateMissPenalty(score, relevantMissCount, attributes.AimDifficultStrainCount);
             }
 
             // TC bonuses are excluded when blinds is present as the increased visual difficulty is unimportant when notes cannot be seen.
@@ -233,7 +233,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
 
                 double relevantMissCount = Math.Min(effectiveMissCount + speedEstimatedSliderBreaks, totalImperfectHits + countSliderTickMiss);
 
-                speedValue *= calculateMissPenalty(relevantMissCount, attributes.SpeedDifficultStrainCount);
+                speedValue *= calculateMissPenalty(score, relevantMissCount, attributes.SpeedDifficultStrainCount);
             }
 
             // TC bonuses are excluded when blinds is present as the increased visual difficulty is unimportant when notes cannot be seen.
@@ -489,12 +489,15 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             if (!score.Mods.Any(m => m is OsuModRelax))
                 return (1.0, 1.0);
 
-            float streamsNerf = difficulty.AimDifficulty / difficulty.SpeedDifficulty;
+            double streamsNerf = difficulty.AimDifficulty / difficulty.SpeedDifficulty;
 
-            float speedDensity = (totalHits > 0.0) ? attributes.SpeedNoteCount / totalHits : 0.0;
+            double speedDensity = (totalHits > 0.0) ? 
+                difficulty.SpeedNoteCount / totalHits 
+                : 0.0;
 
             // density threshold scales inversely with streamsNerf
-            float densityThreshold = 0.50 - (Math.Max(1.05 - streamsNerf, 0.0) / 1.05) * 0.45;
+            double densityThreshold = 0.50 
+                - (Math.Max(1.05 - streamsNerf, 0.0) / 1.05) * 0.45;
 
             double aimMultiplier = 1.0;
             double accDepression = 1.0;
@@ -503,14 +506,18 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             {
                 double accFactor = Math.Abs(1.0 - score.Accuracy);
 
-                double densityFactor = (speedDensity - densityThreshold) / (1.0 - densityThreshold);
+                double densityFactor = Math.Clamp(
+                    (speedDensity - densityThreshold) 
+                    / (1.0 - densityThreshold),
+                0.0, 1.0);
 
-                double densityFactor = Math.Clamp(densityFactor, 0.0, 1.0);
-
-                accDepression = double.Lerp(0.82, Math.Max(0.84 + accFactor * 0.04, 0.55), densityFactor);
+                accDepression = double.Lerp(
+                    0.82, Math.Max(0.84 + accFactor * 0.04, 0.55), densityFactor
+                );
 
                 aimMultiplier *= accDepression;
 
+                // Penalize low accuracy even more :skull:
                 if (score.Accuracy < 0.95)
                 {
                     double accPenalty = 1.0 - (0.95 - score.Accuracy) * 0.3;
@@ -524,7 +531,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
         // Miss penalty assumes that a player will miss on the hardest parts of a map,
         // so we use the amount of relatively difficult sections to adjust miss penalty
         // to make it more punishing on maps with lower amount of hard sections.
-        private double calculateMissPenalty(double missCount, double difficultStrainCount) 
+        private double calculateMissPenalty(ScoreInfo score, double missCount, double difficultStrainCount) 
         {
             if (score.Mods.Any(m => m is OsuModRelax))
                 return MISS_PENALTY_FLOOR + (0.96 - MISS_PENALTY_FLOOR)
