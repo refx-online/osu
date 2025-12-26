@@ -82,19 +82,6 @@ namespace osu.Game.Rulesets.Osu.Difficulty
 
             double drainRate = beatmap.Difficulty.DrainRate;
 
-<<<<<<< HEAD
-            if (mods.Any(h => h is OsuModRelax))
-            {
-                speedRating = 0.6;
-                flashlightRating *= 0.9;
-            }
-            else if (mods.Any(h => h is OsuModAutopilot))
-            {
-                speedRating *= 0.5;
-                aimRating = 0.0;
-                flashlightRating *= 0.4;
-            }
-=======
             double aimDifficultyValue = aim.DifficultyValue();
             double aimNoSlidersDifficultyValue = aimWithoutSliders.DifficultyValue();
             double speedDifficultyValue = speed.DifficultyValue();
@@ -117,7 +104,6 @@ namespace osu.Game.Rulesets.Osu.Difficulty
 
             var simulator = new OsuLegacyScoreSimulator();
             var scoreAttributes = simulator.Simulate(WorkingBeatmap, beatmap);
->>>>>>> upstream/master
 
             double baseAimPerformance = OsuStrainSkill.DifficultyToPerformance(aimRating);
             double baseSpeedPerformance = OsuStrainSkill.DifficultyToPerformance(speedRating);
