@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -12,6 +11,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Drawables;
@@ -51,6 +51,9 @@ namespace osu.Game.Screens.SelectV2
         private TrianglesV2 triangles = null!;
 
         [Resolved]
+        private IRulesetStore rulesets { get; set; } = null!;
+
+        [Resolved]
         private OverlayColourProvider colourProvider { get; set; } = null!;
 
         [Resolved]
@@ -67,6 +70,8 @@ namespace osu.Game.Screens.SelectV2
 
         [Resolved]
         private ISongSelect? songSelect { get; set; }
+
+        private BeatmapInfo beatmap => ((GroupedBeatmap)Item!.Model).Beatmap;
 
         public PanelBeatmap()
         {
@@ -195,27 +200,15 @@ namespace osu.Game.Screens.SelectV2
         {
             base.LoadComplete();
 
-            ruleset.BindValueChanged(_ =>
-            {
-                computeStarRating();
-                updateKeyCount();
-            });
-
-            mods.BindValueChanged(_ =>
-            {
-                computeStarRating();
-                updateKeyCount();
-            }, true);
+            ruleset.BindValueChanged(_ => updateKeyCount());
+            mods.BindValueChanged(_ => updateKeyCount(), true);
         }
 
         protected override void PrepareForUse()
         {
             base.PrepareForUse();
 
-            Debug.Assert(Item != null);
-            var beatmap = (BeatmapInfo)Item.Model;
-
-            difficultyIcon.Icon = beatmap.Ruleset.CreateInstance().CreateIcon();
+            difficultyIcon.Icon = getRulesetIcon(beatmap.Ruleset);
 
             localRank.Beatmap = beatmap;
             difficultyText.Text = beatmap.DifficultyName;
@@ -223,6 +216,16 @@ namespace osu.Game.Screens.SelectV2
 
             computeStarRating();
             updateKeyCount();
+        }
+
+        private Drawable getRulesetIcon(RulesetInfo rulesetInfo)
+        {
+            var rulesetInstance = rulesets.GetRuleset(rulesetInfo.ShortName)?.CreateInstance();
+
+            if (rulesetInstance is null)
+                return new SpriteIcon { Icon = FontAwesome.Regular.QuestionCircle };
+
+            return rulesetInstance.CreateIcon();
         }
 
         protected override void FreeAfterUse()
@@ -243,9 +246,7 @@ namespace osu.Game.Screens.SelectV2
             if (Item == null)
                 return;
 
-            var beatmap = (BeatmapInfo)Item.Model;
-
-            starDifficultyBindable = difficultyCache.GetBindableDifficulty(beatmap, starDifficultyCancellationSource.Token, SongSelect.SELECTION_DEBOUNCE);
+            starDifficultyBindable = difficultyCache.GetBindableDifficulty(beatmap, starDifficultyCancellationSource.Token, SongSelect.DIFFICULTY_CALCULATION_DEBOUNCE);
             starDifficultyBindable.BindValueChanged(starDifficulty =>
             {
                 starRatingDisplay.Current.Value = starDifficulty.NewValue;
@@ -288,8 +289,6 @@ namespace osu.Game.Screens.SelectV2
             if (Item == null)
                 return;
 
-            var beatmap = (BeatmapInfo)Item.Model;
-
             if (ruleset.Value.OnlineID == 3)
             {
                 // Account for mania differences locally for now.
@@ -314,7 +313,7 @@ namespace osu.Game.Screens.SelectV2
                 List<MenuItem> items = new List<MenuItem>();
 
                 if (songSelect != null)
-                    items.AddRange(songSelect.GetForwardActions((BeatmapInfo)Item.Model));
+                    items.AddRange(songSelect.GetForwardActions(beatmap));
 
                 return items.ToArray();
             }
