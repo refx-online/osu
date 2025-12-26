@@ -7,12 +7,12 @@ namespace osu.Game.Online
     {
         public ProductionEndpointConfiguration()
         {
-            WebsiteUrl = APIUrl = @"https://osu.remeliah.cyou";
+            WebsiteUrl = APIUrl = @"https://osu.refx.online";
             APIClientSecret = @"FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk";
             APIClientID = "5";
-            SpectatorUrl = "https://osu.remeliah.cyou/signalr/spectator";
-            MultiplayerUrl = "https://osu.remeliah.cyou/signalr/multiplayer";
-            MetadataUrl = "https://osu.remeliah.cyou/signalr/metadata";
+            SpectatorUrl = "https://osu.refx.online/signalr/spectator";
+            MultiplayerUrl = "https://osu.refx.online/signalr/multiplayer";
+            MetadataUrl = "https://osu.refx.online/signalr/metadata";
             BeatmapSubmissionServiceUrl = "https://bss.ppy.sh"; // soon
         }
     }

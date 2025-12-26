@@ -71,7 +71,7 @@ namespace osu.Game.Online.API
 
         protected virtual WebRequest CreateWebRequest() => new OsuWebRequest(Uri);
 
-        protected virtual string Uri => $@"https://api.remeliah.cyou/v2/{Target}";
+        protected virtual string Uri => $@"https://api.refx.online/v2/{Target}";
 
         protected IAPIProvider? API;
 
