@@ -20,6 +20,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
     public class OsuPerformanceCalculator : PerformanceCalculator
     {
         public const double PERFORMANCE_BASE_MULTIPLIER = 1.14; // This is being adjusted to keep the final pp value scaled around what it used to be when changing things.
+        private const double MISS_PENALTY_FLOOR = 0.018; // Minimum penalty applied per miss, ensures score never drops below this.
 
         private bool usingClassicSliderAccuracy;
         private bool usingScoreV2;
@@ -131,7 +132,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             double flashlightValue = computeFlashlightValue(score, osuAttributes);
 
             var rxStreamNerf = calculateRelaxStreamsNerf(score, osuAttributes);
-            speedValue *= rxStreamNerf.speedMultiplier;
+            aimValue *= rxStreamNerf.aimMultiplier;
 
             double totalValue =
                 Math.Pow(
@@ -481,46 +482,57 @@ namespace osu.Game.Rulesets.Osu.Difficulty
 
         /// <summary>
         /// Applies a nerf to scores with Relax when stream difficulty exceeds aim difficulty.
-        /// higher ratio => heavier nerf on both speed and accuracy performance values.
+        /// lower ratio => heavier nerf on both speed and accuracy performance values.
         /// </summary>
-        private (double speedMultiplier, double accDepression) calculateRelaxStreamsNerf(ScoreInfo score, OsuDifficultyAttributes difficulty)
+        private (double aimMultiplier, double accDepression) calculateRelaxStreamsNerf(ScoreInfo score, OsuDifficultyAttributes difficulty)
         {
             if (!score.Mods.Any(m => m is OsuModRelax))
                 return (1.0, 1.0);
 
-            float ratio = (float)Math.Round(difficulty.SpeedDifficulty / difficulty.AimDifficulty * 100.0) / 100f;
+            float streamsNerf = difficulty.AimDifficulty / difficulty.SpeedDifficulty;
 
-            double speedMultiplier = 1.0;
+            float speedDensity = (totalHits > 0.0) ? attributes.SpeedNoteCount / totalHits : 0.0;
+
+            // density threshold scales inversely with streamsNerf
+            float densityThreshold = 0.50 - (Math.Max(1.05 - streamsNerf, 0.0) / 1.05) * 0.45;
+
+            double aimMultiplier = 1.0;
             double accDepression = 1.0;
 
-            if (ratio > 1.05f)
+            if (streamsNerf < 1.05f && speedDensity > densityThreshold)
             {
-                double acc = score.Accuracy;
-                double accLoss = Math.Abs(1.0 - acc);
+                double accFactor = Math.Abs(1.0 - score.Accuracy);
 
-                accDepression = Math.Min(0.82 + accLoss * 0.08, 0.45);
-                speedMultiplier = accDepression;
+                double densityFactor = (speedDensity - densityThreshold) / (1.0 - densityThreshold);
 
-                if (ratio > 1.15f)
+                double densityFactor = Math.Clamp(densityFactor, 0.0, 1.0);
+
+                accDepression = double.Lerp(0.82, Math.Max(0.84 + accFactor * 0.04, 0.55), densityFactor);
+
+                aimMultiplier *= accDepression;
+
+                if (score.Accuracy < 0.95)
                 {
-                    speedMultiplier *= 0.92;
-                    accDepression *= 0.95;
-                }
-
-                if (acc < 0.95)
-                {
-                    double nerf = 1.0 - (0.95 - acc) * 0.3;
-                    speedMultiplier *= nerf;
+                    double accPenalty = 1.0 - (0.95 - score.Accuracy) * 0.3;
+                    aimMultiplier *= accPenalty;
                 }
             }
 
-            return (speedMultiplier, accDepression);
+            return (aimMultiplier, accDepression);
         }
 
         // Miss penalty assumes that a player will miss on the hardest parts of a map,
         // so we use the amount of relatively difficult sections to adjust miss penalty
         // to make it more punishing on maps with lower amount of hard sections.
-        private double calculateMissPenalty(double missCount, double difficultStrainCount) => 0.96 / ((missCount / (4 * Math.Pow(Math.Log(difficultStrainCount), 0.94))) + 1);
+        private double calculateMissPenalty(double missCount, double difficultStrainCount) 
+        {
+            if (score.Mods.Any(m => m is OsuModRelax))
+                return MISS_PENALTY_FLOOR + (0.96 - MISS_PENALTY_FLOOR)
+                    / (Math.Pow(missCount / (3.0 * Math.Pow(Math.Log(difficultStrainCount), 0.94)), 1.9) + 1.0);
+            else
+                return 0.96 / ((missCount / (4 * Math.Pow(Math.Log(difficultStrainCount), 0.94))) + 1);
+        }
+
         private double getComboScalingFactor(OsuDifficultyAttributes attributes) => attributes.MaxCombo <= 0 ? 1.0 : Math.Min(Math.Pow(scoreMaxCombo, 0.8) / Math.Pow(attributes.MaxCombo, 0.8), 1.0);
 
         private int totalHits => countGreat + countOk + countMeh + countMiss;
